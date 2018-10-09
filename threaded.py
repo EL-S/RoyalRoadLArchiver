@@ -144,7 +144,10 @@ def handle_chapter_response(response):
         global i,chapters_downloaded,chapters_html,fiction_html
         html = response.body.decode('utf-8')
         url = response.effective_url
-        chapter_id = int(url.split("/")[-2])
+        try:
+            chapter_id = int(url.split("/")[-2])
+        except:
+            chapter_id = int(url.split("?")[0].split("/")[-1])
         chapters_downloaded.append(chapter_id)
         html = get_chapter_content(html)
         chapters_html[chapter_id] = html
