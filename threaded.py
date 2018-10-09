@@ -9,25 +9,58 @@ chapters_downloaded = []
 chapters_html = {}
 fiction_html = ""
 directory = "webnovels/"
+continue_id = 0
+running = True
 
 def init():
+    global continue_id
     if not os.path.exists(directory):
         os.makedirs(directory)
+    try:
+        with open("current_id.txt", "r+") as current_id_object:
+            try:
+                continue_id = int(current_id_object.readline())
+            except:
+                current_id_object.write("0")
+                
+    except FileNotFoundError:
+        with open("current_id.txt", "w") as current_id_object:
+            current_id_object.write("0")
+            return init()
 
 def get_fiction_info(fiction_id): #finished
     http_client = httpclient.HTTPClient()
     url = "https://www.royalroad.com/fiction/"+str(fiction_id)
     html = http_client.fetch(url).body.decode('utf-8')
     soup = BeautifulSoup(html, "lxml")
-    title = get_fiction_title(soup)
-    cover_image = get_fiction_cover_image(soup)
-    author = get_fiction_author(soup)
-    description = get_fiction_description(soup)
-    ratings = get_fiction_rating(soup)
-    chapter_links = get_chapter_links(soup)
-    chapter_amount = len(chapter_links)
-    #print(url,title,cover_image,author,description,ratings,chapter_links,chapter_amount)
-    return url,title,cover_image,author,description,ratings,chapter_links,chapter_amount
+    check_active = check_active_fiction(soup,fiction_id)
+    if check_active:
+        title = get_fiction_title(soup)
+        cover_image = get_fiction_cover_image(soup)
+        author = get_fiction_author(soup)
+        description = get_fiction_description(soup)
+        ratings = get_fiction_rating(soup)
+        chapter_links = get_chapter_links(soup)
+        chapter_amount = len(chapter_links)
+        if chapter_amount == 1:
+            plural = ""
+        elif chapter_amount == 0:
+            return None
+        else:
+            plural = "s"
+        print("Downloading (" + str(chapter_amount) + " chapter" + plural + "): " + title + " - " + author + ".html")
+        #print(url,title,cover_image,author,description,ratings,chapter_links,chapter_amount)
+        return url,title,cover_image,author,description,ratings,chapter_links,chapter_amount
+    else:
+        return None
+
+def check_active_fiction(soup,fiction_id):
+    not_active = soup.find('div', attrs={'class': 'number font-red-sunglo'})
+    if not_active:
+        print("No Fiction with ID "+str(fiction_id))
+        return False
+    else:
+        return True
 
 def get_fiction_title(soup): #finished
     title = soup.find('h1', attrs={'property': 'name'}).text.strip()
@@ -75,7 +108,7 @@ def get_chapters(chapter_links):
     chapters_downloaded = []
     chapters_html = {}
     fiction_html = ""
-    http_client = httpclient.AsyncHTTPClient(force_instance=True,defaults=dict(user_agent="Mozilla/5.0"),max_clients=2)
+    http_client = httpclient.AsyncHTTPClient(force_instance=True,defaults=dict(user_agent="Mozilla/5.0"),max_clients=20)
     for chapter in chapter_links:
         global i
         i += 1
@@ -85,18 +118,19 @@ def get_chapters(chapter_links):
 
 def get_chapter_content(html):
     soup = BeautifulSoup(html, "lxml")
-    chapter_title = "<center>" + str(soup.find('h1', attrs={'style': 'margin-top: 10px','class': 'font-white'})) + "</center>"
+    chapter_title = soup.find('h1', attrs={'style': 'margin-top: 10px','class': 'font-white'}).text.strip()
     content_html = str(soup.find('div', attrs={'class': 'chapter-inner chapter-content'}))
-    print(chapter_title)
+    #print(chapter_title)
     return content_html,chapter_title
 
 def save_to_hdd(fiction_html):
     global url,title,cover_image,author,description,ratings,chapter_links,chapter_amount
     time = datetime.now().strftime("%Y-%m-%d %H:%M")
-    data = "<center><img src='" + cover_image + "'><b><h1> \"<a href='" + url + "'>" + str(title) + "</a>\" by \"" + str(author) + "\"</h1></b><br><h2>Last updated: " + time + "</h2></center><br><h3>Description: " + str(description) + "</h3><br>" + fiction_html
+    statistics = "<br><center><b><p>Chapters:</b> " + str(chapter_amount) + "<b> | Overall Score:</b> " + ratings[0] + "<b> | Style Score:</b> " + ratings[1] + "<b> | Story Score:</b> " + ratings[2] + "<b> | Character Score:</b> " + ratings[3] + "<b> | Grammar Score:</b> " + ratings[4] + "</center></p></b>"
+    data = "<link rel='stylesheet' href='styles/tables.css'><center><img src='" + cover_image + "'><b><h1> \"<a href='" + url + "'>" + str(title) + "</a>\" by \"" + str(author) + "\"</h1></b>" + statistics + "<h2>Last updated: " + time + "</h2></center><br><h3>Description: " + str(description) + "</h3><br>" + fiction_html
     title_clean = re.sub(r'[\\/*?:"<>|]',"",title)
     author_clean = re.sub(r'[\\/*?:"<>|]',"",author)
-    print(title_clean + " - " + author_clean + ".html")
+    print("Saving: " + title_clean + " - " + author_clean + ".html")
     file_name = title_clean + " - " + author_clean + ".html"
     full_path = directory + file_name
     with open(full_path, "w", encoding="utf-8") as file_webnovel:
@@ -104,7 +138,7 @@ def save_to_hdd(fiction_html):
     
 def handle_chapter_response(response):
     if response.code == 599:
-        print(response.effective_url)
+        print(response.effective_url,"error")
         http_client.fetch(response.effective_url.strip(), handle_request, method='GET',connect_timeout=10000,request_timeout=10000)
     else:
         global i,chapters_downloaded,chapters_html,fiction_html
@@ -114,7 +148,7 @@ def handle_chapter_response(response):
         chapters_downloaded.append(chapter_id)
         html = get_chapter_content(html)
         chapters_html[chapter_id] = html
-        print(url)
+        #print(url)
         i -= 1
         if i == 0: #all chapters downloaded for the fiction
             #evoke a function with the complete fiction html
@@ -122,12 +156,24 @@ def handle_chapter_response(response):
             chp = 0
             for chp_id in chapters_downloaded:
                 chp += 1
-                fiction_html = fiction_html + "(" + str(chp) + ")" + chapters_html[chp_id][1] + chapters_html[chp_id][0]
+                fiction_html = fiction_html + "<center><h1 style='margin-top: 10px' class='font-white'>(" + str(chp) + ") " + chapters_html[chp_id][1] + "</center></h1>" + chapters_html[chp_id][0]
             save_to_hdd(fiction_html)
-            print("done")
             ioloop.IOLoop.instance().stop()
 print("uwu")
 init()
-url,title,cover_image,author,description,ratings,chapter_links,chapter_amount = get_fiction_info(20887)
-get_chapters(chapter_links)
+while running:
+    global url,title,cover_image,author,description,ratings,chapter_links,chapter_amount
+    for fiction_id in range(continue_id,21000):
+        try:
+            url,title,cover_image,author,description,ratings,chapter_links,chapter_amount = get_fiction_info(fiction_id)
+            get_chapters(chapter_links)
+        except:
+            pass
+        with open("current_id.txt", "w") as current_id_object:
+                current_id_object.seek(0)
+                current_id_object.write(str(fiction_id))
+                current_id_object.truncate()
+                current_id_object.close()
+    break
+print("Finished Archiving")
 
