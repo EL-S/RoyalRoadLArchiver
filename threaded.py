@@ -40,6 +40,7 @@ def get_fiction_info(fiction_id): #finished
         author = get_fiction_author(soup)
         description = get_fiction_description(soup)
         ratings = get_fiction_rating(soup)
+        stats = get_fiction_statistics(soup)
         chapter_links = get_chapter_links(soup)
         chapter_amount = len(chapter_links)
         if chapter_amount == 1:
@@ -50,7 +51,7 @@ def get_fiction_info(fiction_id): #finished
             plural = "s"
         print("Downloading (" + str(chapter_amount) + " chapter" + plural + "): " + title + " - " + author + ".html")
         #print(url,title,cover_image,author,description,ratings,chapter_links,chapter_amount)
-        return url,title,cover_image,author,description,ratings,chapter_links,chapter_amount
+        return url,title,cover_image,author,description,ratings,stats,chapter_links,chapter_amount
     else:
         return None
 
@@ -95,6 +96,17 @@ def get_fiction_rating(soup): #finished
     rating = [overall_rating,best_rating,rating_count,style_rating,story_rating,character_rating,grammar_rating]
     return rating
 
+def get_fiction_statistics(soup):
+    total_views = soup.findAll('li', attrs={'class': 'bold uppercase font-red-sunglo'})[0].text.strip()
+    average_views = soup.findAll('li', attrs={'class': 'bold uppercase font-red-sunglo'})[1].text.strip()
+    followers = soup.findAll('li', attrs={'class': 'bold uppercase font-red-sunglo'})[2].text.strip()
+    favorites = soup.findAll('li', attrs={'class': 'bold uppercase font-red-sunglo'})[3].text.strip()
+    pages = soup.findAll('li', attrs={'class': 'bold uppercase font-red-sunglo'})[5].text.strip()
+    stats = total_views,average_views,followers,favorites,pages
+    return stats
+    
+    
+
 def get_chapter_links(soup): #finished
     chapter_links = []
     chapter_links_tag = soup.findAll('tr', attrs={'style': 'cursor: pointer'})
@@ -124,9 +136,10 @@ def get_chapter_content(html):
     return content_html,chapter_title
 
 def save_to_hdd(fiction_html):
-    global url,title,cover_image,author,description,ratings,chapter_links,chapter_amount
+    global url,title,cover_image,author,description,ratings,stats,chapter_links,chapter_amount
     time = datetime.now().strftime("%Y-%m-%d %H:%M")
-    statistics = "<br><center><b><p>Chapters:</b> " + str(chapter_amount) + "<b> | Overall Score:</b> " + ratings[0] + "<b> | Style Score:</b> " + ratings[1] + "<b> | Story Score:</b> " + ratings[2] + "<b> | Character Score:</b> " + ratings[3] + "<b> | Grammar Score:</b> " + ratings[4] + "</center></p></b>"
+    stats_html = "<b><br>Total Views:</b> " + stats[0] + "<b> | Average Views:</b> " + stats[1] + "<b> | Followers:</b> " + stats[2] + "<b> | Favorites:</b> " + stats[3] + "<b> | Pages:</b> " + stats[4]
+    statistics = "<br><center><b><p>Chapters:</b> " + str(chapter_amount) + "<b> | Overall Score:</b> " + ratings[0] + "<b> | Best Score:</b> " + ratings[1] + "<b> | Ratings:</b> " + ratings[2] + "<b><br>Style Score:</b> " + ratings[3] + "<b> | Story Score:</b> " + ratings[4] + "<b> | Character Score:</b> " + ratings[5] + "<b> | Grammar Score:</b> " + ratings[6] + stats_html + "</center></p></b>"
     data = "<link rel='stylesheet' href='styles/tables.css'><center><img src='" + cover_image + "'><b><h1> \"<a href='" + url + "'>" + str(title) + "</a>\" by \"" + str(author) + "\"</h1></b>" + statistics + "<h2>Last updated: " + time + "</h2></center><br><h3>Description: " + str(description) + "</h3><br>" + fiction_html
     title_clean = re.sub(r'[\\/*?:"<>|]',"",title)
     author_clean = re.sub(r'[\\/*?:"<>|]',"",author)
@@ -165,10 +178,10 @@ def handle_chapter_response(response):
 print("uwu")
 init()
 while running:
-    global url,title,cover_image,author,description,ratings,chapter_links,chapter_amount
+    global url,title,cover_image,author,description,ratings,stats,chapter_links,chapter_amount
     for fiction_id in range(continue_id,21000):
         try:
-            url,title,cover_image,author,description,ratings,chapter_links,chapter_amount = get_fiction_info(fiction_id)
+            url,title,cover_image,author,description,ratings,stats,chapter_links,chapter_amount = get_fiction_info(fiction_id)
             get_chapters(chapter_links)
         except:
             pass
