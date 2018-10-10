@@ -200,7 +200,7 @@ while running:
         try:
             url,title,cover_image,author,description,genres,ratings,stats,chapter_links,chapter_amount = get_fiction_info(fiction_id)
             get_chapters(chapter_links)
-       except TypeError:
+        except TypeError:
             pass #no id
         except Exception as inst:
             print(inst) #real error 
